@@ -5,8 +5,6 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use std::thread;
-use std::time::Duration;
 
 const WINDOW_WIDTH: u32 = 1024;
 const GRID_SIZE: u32 = 8;
@@ -132,7 +130,7 @@ fn project(mut u: [f32; ARRAY_SIZE], mut v: [f32; ARRAY_SIZE]) -> ([f32; ARRAY_S
     (u, v)
 }
 
-fn dens_step(mut x: [f32; ARRAY_SIZE], mut x0: [f32; ARRAY_SIZE], mut u: [f32; ARRAY_SIZE], mut v: [f32; ARRAY_SIZE], diff: f32, dt: f32) -> ([f32; ARRAY_SIZE], [f32; ARRAY_SIZE], [f32; ARRAY_SIZE], [f32; ARRAY_SIZE]) {
+fn dens_step(mut x: [f32; ARRAY_SIZE], mut x0: [f32; ARRAY_SIZE], u: [f32; ARRAY_SIZE], v: [f32; ARRAY_SIZE], diff: f32, dt: f32) -> ([f32; ARRAY_SIZE], [f32; ARRAY_SIZE], [f32; ARRAY_SIZE], [f32; ARRAY_SIZE]) {
     
     let temp = x;
     x = x0;
@@ -178,6 +176,73 @@ fn vel_step(mut u: [f32; ARRAY_SIZE], mut v: [f32; ARRAY_SIZE], mut u0: [f32; AR
     (u, v, u0, v0)
 }
 
+/*fn wheel(mut pos: u8) -> (u8, u8, u8) {
+    pos = !pos;
+    //(r >> 16) | g | (b << 16);
+    if pos < 85 {
+        return (255 - pos * 3 , 0, pos * 3);
+    }
+    if pos < 170 {
+        pos -= 85;
+        return (0, pos * 3 , 255 - pos * 3);
+    }
+    pos -= 170;
+    
+    (pos * 3, 255 - pos * 3, 0)
+}*/
+
+/*fn color_smoke(d: u8, offset: f32) -> (u8, u8, u8) {
+    let h = d as f32 + offset;
+    let s = 1.0;
+    let v = 1.0;
+
+    let c = s*v;
+    let x = c*(1.-((h/60.) % 2.).abs());
+    let m = v - c;
+
+    let mut r = 0.;
+    let mut g = 0.;
+    let mut b = 0.;
+    if h >= 0. && h < 60. {
+        r = c;
+        g = x;
+        b = 0.;
+    }
+    else if h >= 60. && h < 120. {
+        r = x;
+        g = c;
+        b = 0.;
+    }
+    else if h >= 120. && h < 180. {
+        r = 0.;
+        g = c;
+        b = x;
+    }
+    else if h >= 180. && h < 240. {
+        r = 0.;
+        g = x;
+        b = c;
+    }
+    else if h >= 240. && h < 300. {
+        r = x;
+        g = 0.;
+        b = c;
+    }
+    else{
+        r = c;
+        g = 0.;
+        b = x;
+    }
+
+    
+    r *= h / 127.;
+    g *= h / 127.;
+    b *= h / 127.;
+    
+
+    (((r+m) * 255.) as u8, ((g+m) * 255.) as u8, ((b+m) * 255.) as u8)
+}*/
+
 fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
@@ -209,36 +274,46 @@ fn main() {
         set_idx(&mut u_fluid, 20.* i as f32 / NUM_SQUARES as f32, i, NUM_SQUARES/2);
     }
     */
+    let density_added: f32 = 25.;
+    let visc = 0.01;
+    let dt = 1./144.;
 
     let mut adding = false;
-    let mut add_x = 0;
-    let mut add_y = 0;
 
     'mainloop: loop {
-        thread::sleep(Duration::from_millis(20));
+        
         for event in sdl_context.event_pump().unwrap().poll_iter() {
             match event {
                 Event::KeyDown {
                     keycode: Some(Keycode::Escape),
                     ..
                 } | Event::Quit {..} => break 'mainloop,
-                Event::MouseButtonDown {x, y, ..} => {
-                    adding = !adding;
-                    add_x = x;
-                    add_y = y;
+                Event::MouseButtonDown {..} => {
+                    adding = true;
                 },
+                Event::MouseButtonUp {..} => {
+                    adding = false;
+                },
+                Event::MouseMotion { x, y, xrel, yrel, ..} => {
+                    let scale = 50.;
+                    let x = x as usize;
+                    let y = y as usize;
+                    
+                    if adding {
+                        set_idx(&mut u_fluid, scale * xrel as f32,x / GRID_SIZE as usize, y / GRID_SIZE as usize);
+                        set_idx(&mut v_fluid, scale * yrel as f32, x / GRID_SIZE as usize, y  / GRID_SIZE as usize);
+
+                        set_idx(&mut u_prev_fluid, scale * xrel as f32, x / GRID_SIZE as usize, y / GRID_SIZE as usize);
+                        set_idx(&mut v_prev_fluid, scale * yrel as f32, x / GRID_SIZE as usize, y / GRID_SIZE as usize);
+                    }
+                }
                 _ => {}
             }
-        }
+        }        
 
-        if adding {
-            set_idx(&mut d_fluid, 10., (add_x as u32 / GRID_SIZE) as usize, (add_y as u32 / GRID_SIZE) as usize);
-            //set_idx(&mut u_fluid, 100., (x as u32 / GRID_SIZE) as usize, (y as u32 / GRID_SIZE) as usize);
-            set_idx(&mut v_fluid, -100., (add_x as u32 / GRID_SIZE) as usize, (add_y as u32 / GRID_SIZE) as usize);
-        }
-
-        let visc = 0.0001;
-        let dt = 1./144.;
+        // Add fluid
+        set_idx(&mut d_fluid, density_added, NUM_SQUARES / 2, NUM_SQUARES / 2);
+        set_idx(&mut d_prev_fluid, density_added, NUM_SQUARES / 2, NUM_SQUARES / 2);
 
         // Velocity step
         (u_fluid, v_fluid, u_prev_fluid, v_prev_fluid) = vel_step(u_fluid, v_fluid, u_prev_fluid, v_prev_fluid, visc, dt);
@@ -250,12 +325,14 @@ fn main() {
         
         canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
         canvas.clear();
-        for i in 1..NUM_SQUARES+2 {
-            for j in 1..NUM_SQUARES+2 {
-                let red = 0;// (idx(&mut &u_fluid, i, j) * 255.0).abs().floor() as u8;
-                let green = 0;// (idx(&mut v_fluid, i, j) * 255.0).abs().floor() as u8;
-                let blue = (idx(&d_fluid, i, j) * 512.0).floor() as u8;
-                canvas.set_draw_color(Color::RGBA(red, green, blue, 255));
+        for i in 0..NUM_SQUARES {
+            for j in 0..NUM_SQUARES {
+                let density = idx(&d_fluid, i, j);
+                let r = 0;
+                let g = (255. * density).clamp(0., 255.) as u8;
+                let b = (75. * density).clamp(0., 255.) as u8;
+                //let (r, g, b) = color_smoke(density, 0.);
+                canvas.set_draw_color(Color::RGBA(r, g, b, 255));
                 canvas
                     .fill_rect(Rect::new((i as u32 * GRID_SIZE) as i32, (j as u32 * GRID_SIZE) as i32, GRID_SIZE, GRID_SIZE))
                     .expect("could not fill rect");
@@ -263,14 +340,14 @@ fn main() {
                 /*
                 let start_x = (i as u32 * GRID_SIZE + GRID_SIZE/2) as i32;
                 let start_y = (j as u32 * GRID_SIZE + GRID_SIZE/2) as i32;
-                let end_x = start_x + (idx(&mut &u_fluid, i, j) * GRID_SIZE as f32).floor() as i32;
-                let end_y = start_y + (idx(&mut v_fluid, i, j) * GRID_SIZE as f32).floor() as i32;
+                let end_x = start_x + (idx(&mut &u_fluid, i, j) * 2.).floor() as i32;
+                let end_y = start_y + (idx(&mut v_fluid, i, j) * 2.).floor() as i32;
                 canvas.set_draw_color(Color::RGBA(122, 122, 122, 255));
                 canvas.draw_line((start_x, start_y), (end_x, end_y)).expect("Could not draw arrow");
                 */
+                
             }
         }
-        
         canvas.present();
     }
 }
