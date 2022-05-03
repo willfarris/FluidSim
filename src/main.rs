@@ -37,10 +37,8 @@ fn set_bnd(b: u32, field: &mut [f32; ARRAY_SIZE]) {
     set_idx(field, 0.5*(idx(field, NUM_SQUARES, NUM_SQUARES+1)+idx(field, NUM_SQUARES+1, NUM_SQUARES)), NUM_SQUARES+1, NUM_SQUARES+1);
 }
 
-// N: NUM_SQUARES
-// 
-fn diffuse(b: u32, mut x: [f32; ARRAY_SIZE], x0: [f32; ARRAY_SIZE], _diff: f32, _dt: f32) -> ([f32; ARRAY_SIZE], [f32; ARRAY_SIZE]) {
-    let a = 1.0;//dt * diff * (NUM_SQUARES*NUM_SQUARES) as f32;
+fn diffuse(b: u32, mut x: [f32; ARRAY_SIZE], x0: [f32; ARRAY_SIZE], diff: f32, dt: f32) -> ([f32; ARRAY_SIZE], [f32; ARRAY_SIZE]) {
+    let a = dt * diff * (NUM_SQUARES*NUM_SQUARES) as f32;
 
     for _ in 0..20 {
         for i in 1..=NUM_SQUARES {
@@ -146,7 +144,7 @@ fn dens_step(mut x: [f32; ARRAY_SIZE], mut x0: [f32; ARRAY_SIZE], mut u: [f32; A
     x = x0;
     x0 = temp;
     
-    (x, x0) = advect(0, x, x0, &u, &v, 0.01);
+    (x, x0) = advect(0, x, x0, &u, &v, dt);
     
     (x, x0, u, v)
 }
@@ -212,6 +210,9 @@ fn main() {
     }
     */
 
+    let mut adding = false;
+    let mut add_x = 0;
+    let mut add_y = 0;
 
     'mainloop: loop {
         thread::sleep(Duration::from_millis(20));
@@ -222,16 +223,22 @@ fn main() {
                     ..
                 } | Event::Quit {..} => break 'mainloop,
                 Event::MouseButtonDown {x, y, ..} => {
-                    set_idx(&mut d_fluid, 100., (x as u32 / GRID_SIZE) as usize, (y as u32 / GRID_SIZE) as usize);
-                    //set_idx(&mut u_fluid, 100., (x as u32 / GRID_SIZE) as usize, (y as u32 / GRID_SIZE) as usize);
-                    set_idx(&mut v_fluid, -100., (x as u32 / GRID_SIZE) as usize, (y as u32 / GRID_SIZE) as usize);
+                    adding = !adding;
+                    add_x = x;
+                    add_y = y;
                 },
                 _ => {}
             }
         }
 
-        let visc = 0.01;
-        let dt = 0.01;
+        if adding {
+            set_idx(&mut d_fluid, 10., (add_x as u32 / GRID_SIZE) as usize, (add_y as u32 / GRID_SIZE) as usize);
+            //set_idx(&mut u_fluid, 100., (x as u32 / GRID_SIZE) as usize, (y as u32 / GRID_SIZE) as usize);
+            set_idx(&mut v_fluid, -100., (add_x as u32 / GRID_SIZE) as usize, (add_y as u32 / GRID_SIZE) as usize);
+        }
+
+        let visc = 0.0001;
+        let dt = 1./144.;
 
         // Velocity step
         (u_fluid, v_fluid, u_prev_fluid, v_prev_fluid) = vel_step(u_fluid, v_fluid, u_prev_fluid, v_prev_fluid, visc, dt);
@@ -245,8 +252,8 @@ fn main() {
         canvas.clear();
         for i in 1..NUM_SQUARES+2 {
             for j in 1..NUM_SQUARES+2 {
-                let red = (idx(&mut &u_fluid, i, j) * 255.0).abs().floor() as u8;
-                let green = (idx(&mut v_fluid, i, j) * 255.0).abs().floor() as u8;
+                let red = 0;// (idx(&mut &u_fluid, i, j) * 255.0).abs().floor() as u8;
+                let green = 0;// (idx(&mut v_fluid, i, j) * 255.0).abs().floor() as u8;
                 let blue = (idx(&d_fluid, i, j) * 512.0).floor() as u8;
                 canvas.set_draw_color(Color::RGBA(red, green, blue, 255));
                 canvas
@@ -258,10 +265,9 @@ fn main() {
                 let start_y = (j as u32 * GRID_SIZE + GRID_SIZE/2) as i32;
                 let end_x = start_x + (idx(&mut &u_fluid, i, j) * GRID_SIZE as f32).floor() as i32;
                 let end_y = start_y + (idx(&mut v_fluid, i, j) * GRID_SIZE as f32).floor() as i32;
+                canvas.set_draw_color(Color::RGBA(122, 122, 122, 255));
+                canvas.draw_line((start_x, start_y), (end_x, end_y)).expect("Could not draw arrow");
                 */
-
-                //canvas.set_draw_color(Color::RGBA(122, 122, 122, 255));
-                //canvas.draw_line((start_x, start_y), (end_x, end_y)).expect("Could not draw arrow");
             }
         }
         
