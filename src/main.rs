@@ -9,7 +9,7 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 
 const WINDOW_WIDTH: u32 = 1024;
-const GRID_SIZE: u32 = 8;
+const GRID_SIZE: u32 = 4;
 const NUM_SQUARES: usize = (WINDOW_WIDTH/GRID_SIZE) as usize;
 const ARRAY_SIZE: usize = (NUM_SQUARES+2)*(NUM_SQUARES+2);
 
@@ -228,7 +228,7 @@ fn main() {
     let visc = 0.005;
     let dt = 1./144.;
 
-    let mut fluid = Fluid::new(visc);
+    let mut fluid = Box::new(Fluid::new(visc));
 
     let mut adding_vel = false;
     let mut adding_dens = false;
