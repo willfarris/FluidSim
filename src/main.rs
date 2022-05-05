@@ -174,67 +174,36 @@ impl Fluid {
         self.v.set_bnd(2);
     }
 
-    fn dens_step(&mut self, dt: f32) {//mut x: [f32; ARRAY_SIZE], mut x0: [f32; ARRAY_SIZE], u: [f32; ARRAY_SIZE], v: [f32; ARRAY_SIZE], diff: f32, dt: f32) -> ([f32; ARRAY_SIZE], [f32; ARRAY_SIZE], [f32; ARRAY_SIZE], [f32; ARRAY_SIZE]) {
-    
-        /*let temp = x;
-        x = x0;
-        x0 = temp;*/
+    fn dens_step(&mut self, dt: f32) {
         std::mem::swap(&mut self.d, &mut self.d0);
-    
         self.d.diffuse(0, &self.d0, self.visc, dt);
-        
-        /*let temp = x;
-        x = x0;
-        x0 = temp;*/
         std::mem::swap(&mut self.d, &mut self.d0);
-        
         self.d.advect(0, &self.d0, &self.u, &self.v, dt);
     }
     
-    fn vel_step(&mut self, dt: f32) {//mut u: [f32; ARRAY_SIZE], mut v: [f32; ARRAY_SIZE], mut u0: [f32; ARRAY_SIZE], mut v0: [f32; ARRAY_SIZE], visc: f32, dt: f32 ) -> ([f32; ARRAY_SIZE], [f32; ARRAY_SIZE], [f32; ARRAY_SIZE], [f32; ARRAY_SIZE]) {
-        /*let temp = u;
-        u = u0;
-        u0 = temp;*/
+    fn vel_step(&mut self, dt: f32) {
         std::mem::swap(&mut self.u, &mut self.u0);
-
         self.u.diffuse(1, &self.u0, self.visc, dt);
-    
-        /*let temp = v;
-        v = v0;
-        v0 = temp;*/
         std::mem::swap(&mut self.v, &mut self.v0);
         self.v.diffuse(2, &self.v0, self.visc, dt);
-    
         self.project();
-    
-        /*let temp = u;
-        u = u0;
-        u0 = temp;*/
         std::mem::swap(&mut self.u, &mut self.u0);
-        
-    
-        /*let temp = v;
-        v = v0;
-        v0 = temp;*/
         std::mem::swap(&mut self.v, &mut self.v0);
-    
         self.u.advect(1, &self.u0, &self.u0, &self.v0, 0.01);
         self.v.advect(2, &self.v0, &self.u0, &self.v0, 0.01);
-    
         self.project();
     }
 
-    fn step_simulation(&mut self, dt: f32) {
+    fn step_simulation(&mut self, adding_dense: bool, dt: f32) {
         let density_added = 20.;
         
         // Add fluid
-        self.d.set_idx(density_added, NUM_SQUARES / 2, NUM_SQUARES / 2);
-        self.d0.set_idx(density_added, NUM_SQUARES / 2, NUM_SQUARES / 2);
+        if adding_dense {
+            self.d.set_idx(density_added, NUM_SQUARES / 2, NUM_SQUARES / 2);
+            self.d0.set_idx(density_added, NUM_SQUARES / 2, NUM_SQUARES / 2);
+        }
 
-        // Velocity step
         self.vel_step(dt);
-
-        // Density step
         self.dens_step(dt);
     }
 }
@@ -256,18 +225,14 @@ fn main() {
         .build()
         .map_err(|e| e.to_string()).unwrap();
 
-    /*
-    for i in 1..NUM_SQUARES {
-        set_idx(&mut u_fluid, 20.* i as f32 / NUM_SQUARES as f32, i, NUM_SQUARES/2);
-    }
-    */
-    let density_added: f32 = 25.;
     let visc = 0.005;
     let dt = 1./144.;
 
     let mut fluid = Fluid::new(visc);
 
-    let mut adding = false;
+    let mut adding_vel = false;
+    let mut adding_dens = false;
+    let mut show_vec_field = false;
 
     'mainloop: loop {
         
@@ -277,18 +242,26 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } | Event::Quit {..} => break 'mainloop,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Space),
+                    ..
+                } => { adding_dens = !adding_dens; },
+                Event::KeyDown {
+                    keycode: Some(Keycode::V),
+                    ..
+                } => { show_vec_field = !show_vec_field; },
                 Event::MouseButtonDown {..} => {
-                    adding = true;
+                    adding_vel = true;
                 },
                 Event::MouseButtonUp {..} => {
-                    adding = false;
+                    adding_vel = false;
                 },
                 Event::MouseMotion { x, y, xrel, yrel, ..} => {
                     let scale = 10.0;
                     let x = x as usize;
                     let y = y as usize;
                     
-                    if adding {
+                    if adding_vel {
                         fluid.u.set_idx(scale * xrel as f32,x / GRID_SIZE as usize, y / GRID_SIZE as usize);
                         fluid.v.set_idx(scale * yrel as f32, x / GRID_SIZE as usize, y  / GRID_SIZE as usize);
 
@@ -300,7 +273,7 @@ fn main() {
             }
         }        
 
-        fluid.step_simulation(dt);
+        fluid.step_simulation(adding_dens, dt);
 
         
         canvas.set_draw_color(Color::RGBA(0, 0, 0, 255));
@@ -311,20 +284,20 @@ fn main() {
                 let r = 0;
                 let g = (255. * density).clamp(0., 255.) as u8;
                 let b = (75. * density).clamp(0., 255.) as u8;
-                //let (r, g, b) = color_smoke(density, 0.);
                 canvas.set_draw_color(Color::RGBA(r, g, b, 255));
                 canvas
                     .fill_rect(Rect::new((i as u32 * GRID_SIZE) as i32, (j as u32 * GRID_SIZE) as i32, GRID_SIZE, GRID_SIZE))
                     .expect("could not fill rect");
                 
-                /*
-                let start_x = (i as u32 * GRID_SIZE + GRID_SIZE/2) as i32;
-                let start_y = (j as u32 * GRID_SIZE + GRID_SIZE/2) as i32;
-                let end_x = start_x + (idx(&mut &u_fluid, i, j) * 2.).floor() as i32;
-                let end_y = start_y + (idx(&mut v_fluid, i, j) * 2.).floor() as i32;
-                canvas.set_draw_color(Color::RGBA(122, 122, 122, 255));
-                canvas.draw_line((start_x, start_y), (end_x, end_y)).expect("Could not draw arrow");
-                */
+                
+                if show_vec_field {
+                    let start_x = (i as u32 * GRID_SIZE + GRID_SIZE/2) as i32;
+                    let start_y = (j as u32 * GRID_SIZE + GRID_SIZE/2) as i32;
+                    let end_x = start_x + (fluid.u.idx(i, j) * 2.).floor() as i32;
+                    let end_y = start_y + (fluid.v.idx( i, j) * 2.).floor() as i32;
+                    canvas.set_draw_color(Color::RGBA(122, 122, 122, 255));
+                    canvas.draw_line((start_x, start_y), (end_x, end_y)).expect("Could not draw arrow");
+                }
                 
             }
         }
