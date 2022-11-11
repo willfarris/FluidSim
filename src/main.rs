@@ -1,8 +1,6 @@
 extern crate sdl2;
 
 
-use std::ops::Bound;
-
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -16,6 +14,7 @@ const ARRAY_SIZE: usize = (NUM_SQUARES+2)*(NUM_SQUARES+2);
 struct Fluid {
     visc: f32,
 
+    #[allow(dead_code)]
     s: [f32; ARRAY_SIZE],
 
     d: [f32; ARRAY_SIZE],
@@ -217,7 +216,6 @@ fn main() {
         .build()
         .map_err(|e| e.to_string())
         .unwrap();
-    println!("Hello, world!");
 
     let mut canvas = window
         .into_canvas()
