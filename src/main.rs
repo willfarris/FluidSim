@@ -256,15 +256,24 @@ fn main() {
                 },
                 Event::MouseMotion { x, y, xrel, yrel, ..} => {
                     let scale = 10.0;
-                    let x = x as usize;
-                    let y = y as usize;
+                    let x = x as usize / GRID_SIZE as usize;
+                    let y = y as usize / GRID_SIZE as usize;
                     
                     if adding_vel {
-                        fluid.u.set_idx(scale * xrel as f32,x / GRID_SIZE as usize, y / GRID_SIZE as usize);
-                        fluid.v.set_idx(scale * yrel as f32, x / GRID_SIZE as usize, y  / GRID_SIZE as usize);
+                        fluid.u.set_idx(scale * xrel as f32, x, y);
+                        fluid.v.set_idx(scale * yrel as f32, x, y);
 
-                        fluid.u0.set_idx(scale * xrel as f32, x / GRID_SIZE as usize, y / GRID_SIZE as usize);
-                        fluid.v0.set_idx(scale * yrel as f32, x / GRID_SIZE as usize, y / GRID_SIZE as usize);
+                        fluid.u0.set_idx(scale * xrel as f32, x , y);
+                        fluid.v0.set_idx(scale * yrel as f32, x, y);
+                        for i in 0..4 {
+                            for j in 0..4 {
+                                let x = (x+i);
+                                let y = (y+j);
+                                fluid.d.set_idx(1.0, x, y);
+                                fluid.d0.set_idx(1.0, x, y);
+                            }
+                        }
+                        
                     }
                 }
                 _ => {}
